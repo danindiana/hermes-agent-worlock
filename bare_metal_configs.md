@@ -56,6 +56,20 @@ Key invariant (learned the hard way — see [[lessons_learned_ollama]]): `model.
 `custom_providers` entry's `model` must agree, because `resolve_runtime_provider()` reads the latter
 on every turn / launch. The `/model` picker now keeps them in sync automatically.
 
+### Context-capped models (the `num_ctx` 64k floor)
+
+Hermes refuses any model whose served context is below `MINIMUM_CONTEXT_LENGTH = 64_000`. Models that
+pin a small `num_ctx` in their Modelfile (e.g. `nemotron-3-nano-30b-small:latest` → `num_ctx 8192`)
+must be re-published with a larger window before Hermes will run them:
+
+```bash
+printf 'FROM nemotron-3-nano-30b-small:latest\nPARAMETER num_ctx 65536\n' > /tmp/nemo.Modelfile
+ollama create nemotron-3-nano-30b-small:64k -f /tmp/nemo.Modelfile
+```
+
+The `:64k` variant (65536 ≥ 64000) is the worlock-configured way to run this model — it loads ~25 GB
+split across both GPUs (GPU 0 nearly full). Full rationale + VRAM table: [[howto_ollama_integration]].
+
 ## Multi-GPU model splitting (`OLLAMA_SCHED_SPREAD=1`)
 
 By **default** Ollama loads a model onto a *single* GPU whenever it fits, to avoid the per-token

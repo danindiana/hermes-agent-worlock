@@ -69,6 +69,38 @@ resolve_runtime_provider(requested='custom', explicit_base_url=...) -> model=Non
 mutation that doesn't also update its source. Find what the hot loop re-reads, not just where the
 value is first set.
 
+## Bug 4 — a context-capped model couldn't be used at all
+
+Selecting `nemotron-3-nano-30b-small:latest` aborted with:
+
+```
+Failed to initialize agent: Model nemotron-3-nano-30b-small:latest has a context window
+of 8,192 tokens, which is below the minimum 64,000 required by Hermes Agent.
+```
+
+Two facts collided:
+- The model's **Modelfile pins `PARAMETER num_ctx 8192`**, so Ollama only *serves* 8k even though the
+  architecture supports 1M. The `/v1` endpoint takes no per-request `num_ctx`, and
+  `OLLAMA_CONTEXT_LENGTH` does not override a Modelfile parameter.
+- Hermes enforces a **hard floor** `MINIMUM_CONTEXT_LENGTH = 64_000` (`agent/model_metadata.py`) and
+  refuses to initialize below it.
+
+**Fix:** a derivative model with `num_ctx ≥ 64000` —
+`ollama create nemotron-3-nano-30b-small:64k -f Modelfile` (`PARAMETER num_ctx 65536`). Hermes then
+detects 65536 and starts. No Hermes config change beyond pointing `model.default` at the variant.
+
+**False starts worth remembering:**
+- A `:32k` (32768) variant *also* fails — it's below the 64k floor. The shim must clear 64,000, not
+  just be "bigger than 8k".
+- Setting `model.context_length` in config to fake a larger window would pass the gate but cause
+  silent truncation, because Ollama still only serves the Modelfile's `num_ctx`. Fix the *served*
+  window (derivative model), don't just lie to Hermes.
+
+**Lesson:** there are two independent context caps — what the server **serves** (`num_ctx`) and what
+the client **requires** (`MINIMUM_CONTEXT_LENGTH`). A model has to satisfy both, and only the server
+side actually affects truncation. See [[howto_ollama_integration]] for the VRAM-fit table (this 24 GB
+model only just fits `:64k` across both GPUs).
+
 ## How to verify a model switch *actually* took effect (not just the UI)
 
 Don't trust the status bar alone. Confirm the value that hits the wire:
