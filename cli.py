@@ -4953,6 +4953,68 @@ class HermesCLI:
         scroll_offset = max(0, min(scroll_offset, n - visible))
         return scroll_offset, visible
 
+    @staticmethod
+    def _ollama_native_base(base_url: str) -> Optional[str]:
+        """Return the native Ollama host (no ``/v1``) for an Ollama-looking
+        OpenAI-compatible ``base_url``, else None.
+
+        Ollama's model management endpoints (``/api/generate`` with
+        ``keep_alive: 0`` to unload) live at the root, not under ``/v1``.
+        """
+        if not base_url:
+            return None
+        low = base_url.lower()
+        if ":11434" not in low and "ollama" not in low:
+            return None
+        return re.sub(r"/v1/?$", "", base_url.rstrip("/"))
+
+    def _unload_ollama_model(self, base_url: str, model: str) -> None:
+        """Best-effort: ask Ollama to unload ``model`` to free VRAM.
+
+        Sends ``{"model": ..., "keep_alive": 0}`` to ``/api/generate`` on the
+        native host. Runs in a daemon thread so a slow/unreachable server never
+        blocks the model switch; all errors are swallowed.
+        """
+        native = self._ollama_native_base(base_url)
+        if not native or not model:
+            return
+
+        def _do_unload():
+            try:
+                import json as _json
+                import urllib.request as _ur
+                body = _json.dumps({"model": model, "keep_alive": 0}).encode()
+                req = _ur.Request(
+                    native.rstrip("/") + "/api/generate",
+                    data=body,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                _ur.urlopen(req, timeout=5)
+            except Exception:
+                pass
+
+        threading.Thread(target=_do_unload, daemon=True).start()
+
+    def _persist_model_choice(self, result) -> None:
+        """Persist a model switch to config.yaml so it survives restart.
+
+        For ``custom:`` providers (local Ollama / OpenAI-compatible endpoints)
+        the base_url fully identifies the server, so persist the concrete
+        endpoint under the bare ``custom`` provider — writing the ``custom:...``
+        slug as the provider would not resolve cleanly on the next startup.
+        """
+        save_config_value("model.default", result.new_model)
+        target_provider = result.target_provider or ""
+        if target_provider.startswith("custom:"):
+            save_config_value("model.provider", "custom")
+            if result.base_url:
+                save_config_value("model.base_url", result.base_url)
+            if result.api_key:
+                save_config_value("model.api_key", result.api_key)
+        elif result.provider_changed:
+            save_config_value("model.provider", target_provider)
+
     def _apply_model_switch_result(self, result, persist_global: bool) -> None:
         if not result.success:
             _cprint(f"  ✗ {result.error_message}")
@@ -4960,6 +5022,7 @@ class HermesCLI:
             return
 
         old_model = self.model
+        old_base_url = self.base_url
         self.model = result.new_model
         self.provider = result.target_provider
         self.requested_provider = result.target_provider
@@ -4984,6 +5047,11 @@ class HermesCLI:
             except Exception as exc:
                 _cprint(f"  ⚠ Agent swap failed ({exc}); change applied to next session.")
 
+        # Free VRAM: unload the previously-loaded model from Ollama when
+        # switching to a different model on the same local server.
+        if old_model and old_model != result.new_model:
+            self._unload_ollama_model(old_base_url, old_model)
+
         self._pending_model_switch_note = (
             f"[Note: model was just switched from {old_model} to {result.new_model} "
             f"via {result.provider_label or result.target_provider}. "
@@ -4993,6 +5061,7 @@ class HermesCLI:
         provider_label = result.provider_label or result.target_provider
         _cprint(f"  ✓ Model switched: {result.new_model}")
         _cprint(f"    Provider: {provider_label}")
+        _cprint(f"  ▶ Now answering with: {result.new_model}")
 
         mi = result.model_info
         if mi:
@@ -5025,10 +5094,8 @@ class HermesCLI:
         if result.warning_message:
             _cprint(f"    ⚠ {result.warning_message}")
         if persist_global:
-            save_config_value("model.default", result.new_model)
-            if result.provider_changed:
-                save_config_value("model.provider", result.target_provider)
-            _cprint("    Saved to config.yaml (--global)")
+            self._persist_model_choice(result)
+            _cprint("    Saved as default in config.yaml")
         else:
             _cprint("    (session only — add --global to persist)")
 
@@ -5039,7 +5106,10 @@ class HermesCLI:
         # keystroke.
         self._invalidate(min_interval=0.0)
 
-    def _handle_model_picker_selection(self, persist_global: bool = False) -> None:
+    def _handle_model_picker_selection(self, persist_global: bool = True) -> None:
+        # Picker selections persist to config.yaml by default so the chosen
+        # model survives a restart (users expect the picker to set the
+        # default, not just a session override).
         state = self._model_picker_state
         if not state:
             return
@@ -5265,9 +5335,7 @@ class HermesCLI:
 
         # Persistence
         if persist_global:
-            save_config_value("model.default", result.new_model)
-            if result.provider_changed:
-                save_config_value("model.provider", result.target_provider)
+            self._persist_model_choice(result)
             _cprint("    Saved to config.yaml (--global)")
         else:
             _cprint("    (session only — add --global to persist)")
