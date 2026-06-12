@@ -94,44 +94,56 @@ Some Ollama models pin a small context window in their **Modelfile**, e.g.
 PARAMETER num_ctx 8192
 ```
 
-8192 tokens is too small for agent use — Hermes's system prompt + tool schemas + skills exceed it, so
-Hermes warns "context length is only 8,192 tokens" and the model is effectively unusable as an agent.
+8192 tokens fails outright. Hermes enforces a **hard minimum of 64,000 tokens**
+(`MINIMUM_CONTEXT_LENGTH = 64_000` in `agent/model_metadata.py`); below it, agent init aborts with:
+
+```
+Failed to initialize agent: Model <name> has a context window of 8,192 tokens,
+which is below the minimum 64,000 required by Hermes Agent.
+```
+
 The model's *architecture* supports far more (this one reports 1,048,576), but Ollama only **serves**
 what `num_ctx` allows, and:
 
 - The OpenAI-compatible `/v1` endpoint has **no per-request `num_ctx`**, so Hermes can't raise it.
 - `OLLAMA_CONTEXT_LENGTH` (env) does **not** override a Modelfile `PARAMETER num_ctx`.
 
-**Shim = a derivative model with a larger `num_ctx`:**
+**Shim = a derivative model with `num_ctx` ≥ 64,000.** It must clear Hermes's 64k floor, so 32k is
+*not* enough — go straight to 64k:
 
 ```bash
-printf 'FROM nemotron-3-nano-30b-small:latest\nPARAMETER num_ctx 32768\n' > /tmp/nemo.Modelfile
-ollama create nemotron-3-nano-30b-small:32k -f /tmp/nemo.Modelfile
+printf 'FROM nemotron-3-nano-30b-small:latest\nPARAMETER num_ctx 65536\n' > /tmp/nemo.Modelfile
+ollama create nemotron-3-nano-30b-small:64k -f /tmp/nemo.Modelfile
 ```
 
-That's the whole fix. No Hermes config change needed — Hermes reads `num_ctx` from the new model and
-detects 32768. The variant shows up automatically in the `/model` picker (live-listed). Verify:
+Then point Hermes at the variant (and the custom_providers entry, so it sticks) — or just select it in
+the `/model` picker, where it appears automatically (live-listed):
 
 ```bash
 v && python -c "
-from agent.model_metadata import get_model_context_length
-print(get_model_context_length('nemotron-3-nano-30b-small:32k',
-      base_url='http://localhost:11434/v1', api_key='ollama'))   # -> 32768
+from agent.model_metadata import get_model_context_length, MINIMUM_CONTEXT_LENGTH
+ctx = get_model_context_length('nemotron-3-nano-30b-small:64k',
+      base_url='http://localhost:11434/v1', api_key='ollama')
+print(ctx, 'passes:', ctx >= MINIMUM_CONTEXT_LENGTH)   # -> 65536 passes: True
 "
 ```
 
-**Pick the size to fit VRAM.** Ollama allocates the KV cache for the *full* `num_ctx` at load time, so
-bigger windows cost VRAM up front. On worlock (≈26.5 GB across both GPUs, `SCHED_SPREAD=1`) for this
-~24 GB model:
+No further Hermes config is needed — it reads `num_ctx` from the new model and detects 65536.
 
-| Variant | Total VRAM at load | GPU 0 (5080) headroom | Verdict |
-|---------|--------------------|-----------------------|---------|
-| `:latest` (8k) | ~14.5 GB | lots | unusable for agents (too small) |
-| `:32k` | ~24.8 GB | ~0.8 GB | **recommended — safe headroom** |
-| `:64k` | ~25.0 GB | ~0.7 GB | works, but GPU 0 nearly full; risky |
+**Mind the VRAM.** Ollama allocates the KV cache for the *full* `num_ctx` at load time, so bigger
+windows cost VRAM up front. On worlock (≈26.5 GB across both GPUs, `SCHED_SPREAD=1`) for this ~24 GB
+model:
 
-Start at `:32k`; only go larger if `nvidia-smi` shows room. `OLLAMA_KV_CACHE_TYPE=q8_0` (already set,
-see `bare_metal_configs.md`) keeps the KV cache compact.
+| Variant | Hermes gate (≥64k) | Total VRAM at load | GPU 0 (5080) headroom | Verdict |
+|---------|--------------------|--------------------|-----------------------|---------|
+| `:latest` (8k) | ✗ rejected | ~14.5 GB | lots | unusable — below the 64k floor |
+| `:32k` | ✗ rejected | ~24.8 GB | ~0.8 GB | still below the 64k floor — don't bother |
+| `:64k` | ✓ passes | ~25.0 GB | ~0.7 GB | **the working option — GPU 0 is tight but loads** |
+
+`:64k` is the smallest window that satisfies Hermes here, which is fortunate because this 24 GB model
+leaves little VRAM room — going higher than 64k risks OOM during generation. `OLLAMA_KV_CACHE_TYPE=q8_0`
+(already set, see `bare_metal_configs.md`) keeps the KV cache compact. If `:64k` OOMs under real load,
+the model is simply too big for this GPU pair at agent context — use a smaller/lower-quant model.
 
 To remove a variant: `ollama rm nemotron-3-nano-30b-small:64k`.
 
