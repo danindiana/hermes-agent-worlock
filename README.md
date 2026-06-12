@@ -277,6 +277,7 @@ should report `…/hermes-agent/.venv/bin/python3` and `Python 3.12.x`.
 
 | Doc | What's in it |
 |-----|--------------|
+| [`agents_skills_repo.md`](agents_skills_repo.md) | **Start here if you're an agent/frontier model** — verbose cold-start onboarding for this repo |
 | [`howto.md`](howto.md) | Operational runbook — activate venv, run subcommands, recreate the venv, update deps |
 | [`lessons_learned.md`](lessons_learned.md) | The debugging narrative and the traps that bit us |
 | [`future_directions.md`](future_directions.md) | Hardening ideas — pin Python, bootstrap script, extras, upstream sync |
