@@ -81,6 +81,9 @@ it should report `…/hermes-agent/.venv/bin/python3` and `Python 3.12.x`.
 | [`future_directions.md`](future_directions.md) | Hardening ideas — pin Python, bootstrap script, extras, upstream sync |
 | [`bare_metal_system.md`](bare_metal_system.md) | Host hardware/OS/network overview for worlock |
 | [`bare_metal_system_config.md`](bare_metal_system_config.md) | Concrete config: paths, Python versions, `v.sh`, services |
+| [`howto_ollama_integration.md`](howto_ollama_integration.md) | Wiring Ollama into Hermes — pick/switch models, verify, troubleshoot |
+| [`lessons_learned_ollama.md`](lessons_learned_ollama.md) | Why the `/model` picker bugs existed and how they were fixed |
+| [`bare_metal_configs.md`](bare_metal_configs.md) | Ollama service + Hermes model config values for worlock |
 | [`UPSTREAM_README.md`](UPSTREAM_README.md) | The original NousResearch README, unmodified |
 
 ---
