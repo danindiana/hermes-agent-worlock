@@ -1,0 +1,22 @@
+digraph future_directions {
+  label="Future directions — hardening the worlock deployment";
+  labelloc="t"; fontname="Helvetica"; fontsize=20;
+  rankdir=LR; bgcolor="#fbfbfd";
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box, color="#34344a", fillcolor="#eef1f7"];
+  edge [fontname="Helvetica", fontsize=9, color="#5a5a72"];
+
+  root [label="Root cause to design out:\nambient interpreter selection\n(env python3 + activation order)", shape=box, fillcolor="#fdeede", color="#b4791f", penwidth=1.5];
+
+  n1 [label="1. Pin Python explicitly\n.python-version (3.12) and/or\nfork-local shebang → .venv/bin/python"];
+  n2 [label="2. Bootstrap script / Makefile\nmake setup / make run\none command, no skipped steps"];
+  n3 [label="3. Choose extras deliberately\n[voice] [messaging] [slack] [cron]\nnot .[all] — keep surface small"];
+  n4 [label="4. Keep fork synced w/ upstream\ngit fetch origin; merge; push private\nwatch for requires-python bumps"];
+  n5 [label="5. Reproducibility\npip freeze > requirements.lock.txt\ncommit lockfile"];
+  n6 [label="6. CI smoke test\nGitHub Action: pip install -e . +\nimport cli on 3.11/3.12/3.13"];
+  n7 [label="7. Observability\nwire ./hermes logs into Netdata\nif run as long-lived gateway"];
+
+  root -> n1; root -> n2;
+  n1 -> n3 [style=invis]; n2 -> n4 [style=invis];
+  n3 -> n5 [style=invis]; n4 -> n6 [style=invis];
+  root -> n3; root -> n4; root -> n5; root -> n6; root -> n7;
+}

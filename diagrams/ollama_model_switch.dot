@@ -1,0 +1,33 @@
+digraph ollama_model_switch {
+  label="Ollama integration & /model switch flow (worlock fork)";
+  labelloc="t"; fontname="Helvetica"; fontsize=20;
+  rankdir=TB; bgcolor="#fbfbfd";
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box, color="#34344a", fillcolor="#eef1f7"];
+  edge [fontname="Helvetica", fontsize=10, color="#5a5a72"];
+
+  subgraph cluster_two {
+    label="two URLs on :11434"; style="rounded,filled"; color="#1f8b5a"; fillcolor="#e9f7f0";
+    v1   [label="/v1  (OpenAI-compat)\nchat/completions + /v1/models\n→ generation & picker listing", fillcolor="#d6f2e4"];
+    root [label="native root\n/api/tags · /api/ps · /api/generate\n→ unload model (free VRAM)", fillcolor="#d6f2e4"];
+  }
+
+  pick [label="/model — picker opens\nlist_authenticated_providers(probe_live=True)\n→ fetch_api_models() merges live + config\n(cap max_models=50)", fillcolor="#ffe9c9", color="#b4791f"];
+
+  sel  [label="select Local Ollama → model", fillcolor="#dde7f7"];
+
+  s1 [label="① switch live agent\nnext prompt uses new model", fillcolor="#e7f7ee"];
+  s2 [label="② persist to config.yaml (default)\nmodel.default + custom_providers[].model", shape=note, fillcolor="#fff7d6"];
+  s3 [label="③ unload previous model\nbest-effort, native /api", fillcolor="#e7f7ee"];
+  s4 [label="④ print ✓ Model switched\n▶ Now answering with: <model>\n+ refresh status bar", fillcolor="#e7f7ee"];
+
+  pick -> v1 [label="lists via", color="#1f8b5a", style=dashed];
+  pick -> sel -> s1 -> s2 -> s3 -> s4;
+  s1 -> v1 [label="future requests", color="#1f8b5a"];
+  s3 -> root [label="frees VRAM", color="#1f8b5a", style=dashed];
+
+  byname [label="by name (no menu)\n/model qwen3:14b           (session)\n/model qwen3:14b --global  (persist)", shape=box, fillcolor="#eef1f7"];
+  byname -> s1 [style=dashed];
+
+  fixes [label="fork fixes baked in\n• stop per-turn re-resolve reverting pick\n• show active model in status bar\n• OLLAMA_SCHED_SPREAD multi-GPU split", shape=box, fillcolor="#f1f4fb", color="#9aa7bd", peripheries=2];
+  s4 -> fixes [style=dotted];
+}

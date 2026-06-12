@@ -1,0 +1,38 @@
+digraph howto {
+  label="How-To — operating hermes-agent on worlock";
+  labelloc="t"; fontname="Helvetica"; fontsize=20;
+  rankdir=TB; bgcolor="#fbfbfd";
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box, color="#34344a", fillcolor="#eef1f7"];
+  edge [fontname="Helvetica", fontsize=10, color="#5a5a72"];
+
+  cd  [label="cd /home/jeb/hermes-agent"];
+  v   [label="v   (source /home/jeb/bin/v.sh)\nactivates ./.venv (Python 3.12)", fillcolor="#dde7f7"];
+
+  subgraph cluster_search {
+    label="v.sh search order (first match wins)"; style="rounded,filled"; color="#9aa7bd"; fillcolor="#f1f4fb";
+    s1 [label="1. ./.venv/bin/activate  ✓ WINNER", fillcolor="#d6f2e4", color="#1f8b5a"];
+    s2 [label="2. ./venv/bin/activate"];
+    s3 [label="3. ../.venv  4. ../venv"];
+    s5 [label="5. shared venv (Py 3.10) ✗", fillcolor="#f7d6d6", color="#b41f1f"];
+    s1 -> s2 -> s3 -> s5 [style=invis];
+  }
+
+  run [label="./hermes <subcommand>\nchat · model · setup · status · sessions\nmcp · gateway · cron · doctor · logs ...", fillcolor="#e7f7ee"];
+  flags [label="global flags\n--resume · --continue · --worktree\n--skills · --yolo · --tui · --dev", shape=note, fillcolor="#fff7d6"];
+
+  model [label="/model  (in chat)\npick Provider → Model\nor /model <name> [--global]", fillcolor="#ffe9c9", color="#b4791f"];
+
+  subgraph cluster_verify {
+    label="verify (UI can lie — check 2 layers)"; style="rounded,filled"; color="#9aa7bd"; fillcolor="#f1f4fb";
+    va [label="layer 1: what Hermes will SEND\n_build_api_kwargs()['model']"];
+    vb [label="layer 2: what server LOADED\nollama ps / /api/ps"];
+  }
+
+  recreate [label="rebuild venv if broken\nrm -rf .venv; python3.12 -m venv .venv;\npip install -e .", shape=box, fillcolor="#fdeede", color="#b4791f"];
+
+  cd -> v -> run -> model;
+  v -> s1 [style=dashed, label="resolves"];
+  run -> flags [style=dotted];
+  model -> va; model -> vb;
+  v -> recreate [label="on ModuleNotFoundError", style=dashed, color="#b41f1f"];
+}

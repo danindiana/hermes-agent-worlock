@@ -1,0 +1,53 @@
+digraph architecture {
+  label="Hermes Agent — worlock fork architecture";
+  labelloc="t";
+  fontname="Helvetica"; fontsize=20;
+  rankdir=TB;
+  bgcolor="#fbfbfd";
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box, color="#34344a", fillcolor="#eef1f7", penwidth=1.3];
+  edge [fontname="Helvetica", fontsize=9, color="#5a5a72"];
+
+  subgraph cluster_entry {
+    label="Entry / TUI"; style="rounded,filled"; color="#cbd5e1"; fillcolor="#f4f6fb";
+    hermes  [label="./hermes\n(wrapper, env python3 shebang)", fillcolor="#dde7f7"];
+    cli     [label="cli.py\nFire CLI · prompt_toolkit TUI\nsubcommands: chat/model/setup/\nstatus/gateway/cron/mcp/...", fillcolor="#dde7f7"];
+  }
+
+  subgraph cluster_core {
+    label="Agent core"; style="rounded,filled"; color="#cbd5e1"; fillcolor="#f4f6fb";
+    agent   [label="run_agent.AIAgent\nturn loop · _build_api_kwargs()\nswitch_model()", fillcolor="#e7f7ee"];
+    tools   [label="tools / model_tools.py"];
+    skills  [label="skills/\nself-authored, improved in use"];
+    state   [label="hermes_state\nsessions · user model · memory"];
+  }
+
+  subgraph cluster_ext {
+    label="Extensions"; style="rounded,filled"; color="#cbd5e1"; fillcolor="#f4f6fb";
+    mcp     [label="MCP servers\nmcp_serve.py"];
+    acp     [label="ACP adapter/registry"];
+    msg     [label="Messaging bridges\nTelegram/Discord/Slack/\nWhatsApp/Signal"];
+  }
+
+  subgraph cluster_prov {
+    label="Provider layer"; style="rounded,filled"; color="#cbd5e1"; fillcolor="#fbf3e7";
+    picker  [label="hermes_cli/model_switch.py\n/model picker (WORLOCK FORK)\nlist live · persist · unload VRAM", fillcolor="#ffe9c9", color="#b4791f"];
+    anthro  [label="Anthropic-wire provider\nclaude-* (cloud)", fillcolor="#f3e7fb"];
+    custom  [label="custom provider\nOpenAI-compatible /v1", fillcolor="#ffe9c9", color="#b4791f"];
+  }
+
+  ollama  [label="Local Ollama  :11434\n/v1 (OpenAI-compat) + native root\nRTX 5080 + RTX 3080", shape=cylinder, fillcolor="#d6f2e4", color="#1f8b5a", penwidth=1.6];
+  cfg     [label="~/.hermes/config.yaml\nmodel.default · custom_providers", shape=note, fillcolor="#fff7d6", color="#b4a01f"];
+
+  hermes -> cli -> agent;
+  agent -> tools; agent -> skills; agent -> state;
+  agent -> mcp; agent -> acp; cli -> msg;
+  cli -> picker [label="/model"];
+  picker -> custom [label="select Local Ollama"];
+  picker -> anthro;
+  picker -> cfg   [label="persist (--global)", style=dashed];
+  picker -> ollama [label="unload old model\n(native /api)", style=dashed, color="#1f8b5a"];
+  agent -> anthro;
+  agent -> custom;
+  custom -> ollama [label="chat/completions"];
+  cfg -> agent [label="default at boot", style=dotted];
+}

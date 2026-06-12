@@ -1,0 +1,24 @@
+digraph releases_timeline {
+  label="Modification history — worlock fork commits (oldest → newest)";
+  labelloc="t"; fontname="Helvetica"; fontsize=20;
+  rankdir=TB; bgcolor="#fbfbfd"; ranksep=0.45;
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box, color="#34344a", fillcolor="#eef1f7"];
+  edge [fontname="Helvetica", fontsize=9, color="#5a5a72", arrowhead=vee];
+
+  fork [label="upstream NousResearch/hermes-agent\nv0.10.0 (fork point)", shape=box, fillcolor="#f3e7fb", color="#7a3fb4", penwidth=1.6];
+
+  c1 [label="3e54e624d  docs\nworlock bare-metal deployment + venv fix", fillcolor="#dde7f7"];
+  c2 [label="6964e0d55  feat(model-picker)\nlist live Ollama/custom-endpoint models", fillcolor="#ffe9c9", color="#b4791f"];
+  c3 [label="ca97965c7  fix(tui)\nrefresh status bar after /model switch", fillcolor="#e7f7ee"];
+  c4 [label="ba172f84e  feat(model-picker)\npersist selection · show active · unload old VRAM", fillcolor="#ffe9c9", color="#b4791f"];
+  c5 [label="46453ed27  fix(model-picker)\nstop per-turn re-resolve reverting picked model", fillcolor="#e7f7ee"];
+  c6 [label="47b06f19e  docs\nOllama integration docs (howto/lessons/config)", fillcolor="#dde7f7"];
+  c7 [label="a63369b1a  docs(ollama)\nOLLAMA_SCHED_SPREAD multi-GPU model splitting", fillcolor="#dde7f7"];
+
+  head [label="HEAD  → push to private\ndanindiana/hermes-agent-worlock", shape=box, fillcolor="#d6f2e4", color="#1f8b5a", penwidth=1.6];
+
+  fork -> c1 -> c2 -> c3 -> c4 -> c5 -> c6 -> c7 -> head;
+
+  legend [shape=note, fillcolor="#fff7d6", color="#b4a01f",
+    label="legend\nblue = docs/deployment\norange = model-picker feature\ngreen = bugfix"];
+}

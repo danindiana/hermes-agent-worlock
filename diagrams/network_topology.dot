@@ -1,0 +1,46 @@
+digraph network_topology {
+  label="worlock — bare-metal host & network topology for hermes-agent";
+  labelloc="t"; fontname="Helvetica"; fontsize=20;
+  rankdir=LR; bgcolor="#fbfbfd"; compound=true;
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box, color="#34344a", fillcolor="#eef1f7"];
+  edge [fontname="Helvetica", fontsize=9, color="#5a5a72"];
+
+  subgraph cluster_host {
+    label="host: worlock  (Ubuntu 22.04.5 · kernel 6.8.12 · zsh)";
+    style="rounded,filled"; color="#9aa7bd"; fillcolor="#f1f4fb";
+
+    cpu  [label="AMD Ryzen 9 5950X\n16c/32t · 125 GiB RAM", fillcolor="#e7ecf7"];
+
+    subgraph cluster_gpu {
+      label="Dual NVIDIA (driver 580.159.03)"; style="rounded,filled"; color="#1f8b5a"; fillcolor="#e9f7f0";
+      g5080 [label="RTX 5080\n~16 GB VRAM", fillcolor="#d6f2e4"];
+      g3080 [label="RTX 3080\n~10 GB VRAM", fillcolor="#d6f2e4"];
+    }
+
+    subgraph cluster_proc {
+      label="processes"; style="rounded,filled"; color="#b4791f"; fillcolor="#fbf3e7";
+      hermes [label="hermes-agent\n.venv (Python 3.12)\n./hermes", fillcolor="#ffe9c9"];
+      ollama [label="Ollama  127.0.0.1:11434\n/v1 + native root\n(localhost-only)", shape=cylinder, fillcolor="#ffe9c9"];
+    }
+
+    venvshared [label="shared venv (Py 3.10)\n/home/jeb/programs/.../venv\n✗ wrong for hermes", fillcolor="#f7d6d6", color="#b41f1f", style="filled,dashed"];
+  }
+
+  lan   [label="LAN  enp9s0\n192.168.1.85/24 (DHCP)", shape=oval, fillcolor="#e7ecf7"];
+  router[label="ATT BGW210 router\n192.168.1.254", shape=oval, fillcolor="#e7ecf7"];
+  vpn   [label="PIA WireGuard\nwgpia0", shape=oval, fillcolor="#f3e7fb"];
+
+  subgraph cluster_gh {
+    label="GitHub remotes"; style="rounded,filled"; color="#9aa7bd"; fillcolor="#f1f4fb";
+    origin  [label="origin → NousResearch/hermes-agent\n(pull upstream)", fillcolor="#e7ecf7"];
+    private [label="private → danindiana/hermes-agent-worlock\n(push fork)", fillcolor="#dde7f7"];
+  }
+
+  hermes -> ollama [label="localhost /v1", color="#1f8b5a", penwidth=1.5];
+  ollama -> g5080 [label="VRAM", color="#1f8b5a"]; ollama -> g3080 [label="OLLAMA_SCHED_SPREAD", color="#1f8b5a"];
+  hermes -> cpu [style=dotted]; hermes -> venvshared [label="fallback (avoided)", style=dashed, color="#b41f1f"];
+  cpu -> lan; lan -> router; router -> vpn [style=dotted];
+  hermes -> origin [label="git pull", style=dashed];
+  hermes -> private [label="git push", style=dashed];
+  router -> origin [style=dotted]; router -> private [style=dotted];
+}

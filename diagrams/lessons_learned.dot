@@ -1,0 +1,25 @@
+digraph lessons_learned {
+  label="Lessons learned — the ModuleNotFoundError trap chain & the fix";
+  labelloc="t"; fontname="Helvetica"; fontsize=20;
+  rankdir=TB; bgcolor="#fbfbfd";
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box, color="#34344a", fillcolor="#eef1f7"];
+  edge [fontname="Helvetica", fontsize=10, color="#5a5a72"];
+
+  start [label="$ ./hermes\nModuleNotFoundError: 'prompt_toolkit'", shape=box, fillcolor="#f7d6d6", color="#b41f1f", penwidth=1.5];
+
+  t1 [label="TRAP 1 — env python3 shebang\n#!/usr/bin/env python3 runs under\nWHATEVER venv PATH resolves to.\nActivation order = real config.", fillcolor="#fdeede", color="#b4791f"];
+  t2 [label="TRAP 2 — shared venv is Python 3.10\npyproject requires-python >=3.11\n→ pip install -e . refuses outright.\nNot fixable by adding packages.", fillcolor="#fdeede", color="#b4791f"];
+  t3 [label="TRAP 3 — import treadmill\nhand-install prompt_toolkit → next:\nimport fire → then more...\nChasing transitive deps one by one.", fillcolor="#fdeede", color="#b4791f"];
+
+  fix [label="THE FIX — dedicated repo-local venv on Python 3.12\npython3.12 -m venv .venv\n.venv/bin/python -m pip install --upgrade pip\n.venv/bin/python -m pip install -e .   (resolves ALL deps)", shape=box, fillcolor="#d6f2e4", color="#1f8b5a", penwidth=1.8];
+
+  why [label="Why it works\n• worlock has 3.11/3.12/3.13 in /usr/local/bin (3.12 chosen)\n• -e . pulls every pyproject dep in one shot\n• `v` alias prefers ./.venv → activation deterministic", fillcolor="#e9f7f0", color="#1f8b5a"];
+
+  herring [label="Harmless red herring\nfirecrawl Pydantic UserWarning:\nField 'json' shadows BaseModel attr.\nIt's a warning, not an error — ignore.", shape=note, fillcolor="#fff7d6", color="#b4a01f"];
+
+  start -> t1 -> t2 -> t3 -> fix -> why;
+  fix -> herring [label="post-fix noise", style=dashed];
+
+  takeaway [label="Takeaways\n• env-python3 shebang has no opinion on interpreter — you must\n• read requires-python first; version mismatch isn't pip-fixable\n• install the project, not its imports\n• prefer repo-local .venv over shared\n• triage warnings before chasing", shape=box, fillcolor="#eef1f7", color="#34344a", peripheries=2];
+  why -> takeaway;
+}
