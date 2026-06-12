@@ -4956,6 +4956,7 @@ class HermesCLI:
     def _apply_model_switch_result(self, result, persist_global: bool) -> None:
         if not result.success:
             _cprint(f"  ✗ {result.error_message}")
+            self._invalidate(min_interval=0.0)
             return
 
         old_model = self.model
@@ -5030,6 +5031,13 @@ class HermesCLI:
             _cprint("    Saved to config.yaml (--global)")
         else:
             _cprint("    (session only — add --global to persist)")
+
+        # Repaint the status bar now that self.model / agent.model have changed.
+        # The picker calls _close_model_picker() (which invalidates) *before*
+        # this method updates the model, so without an explicit invalidate here
+        # the bottom toolbar keeps showing the previous model until the next
+        # keystroke.
+        self._invalidate(min_interval=0.0)
 
     def _handle_model_picker_selection(self, persist_global: bool = False) -> None:
         state = self._model_picker_state
