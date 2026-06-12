@@ -85,6 +85,56 @@ curl -s http://localhost:11434/api/ps | python3 -c \
 After sending a prompt with the new model selected, the new model should appear here and the old one
 should drop (Hermes unloads it; otherwise it ages out via keep-alive).
 
+## Uncapping a model's context window (`num_ctx` shim)
+
+Some Ollama models pin a small context window in their **Modelfile**, e.g.
+`nemotron-3-nano-30b-small:latest` ships with:
+
+```
+PARAMETER num_ctx 8192
+```
+
+8192 tokens is too small for agent use — Hermes's system prompt + tool schemas + skills exceed it, so
+Hermes warns "context length is only 8,192 tokens" and the model is effectively unusable as an agent.
+The model's *architecture* supports far more (this one reports 1,048,576), but Ollama only **serves**
+what `num_ctx` allows, and:
+
+- The OpenAI-compatible `/v1` endpoint has **no per-request `num_ctx`**, so Hermes can't raise it.
+- `OLLAMA_CONTEXT_LENGTH` (env) does **not** override a Modelfile `PARAMETER num_ctx`.
+
+**Shim = a derivative model with a larger `num_ctx`:**
+
+```bash
+printf 'FROM nemotron-3-nano-30b-small:latest\nPARAMETER num_ctx 32768\n' > /tmp/nemo.Modelfile
+ollama create nemotron-3-nano-30b-small:32k -f /tmp/nemo.Modelfile
+```
+
+That's the whole fix. No Hermes config change needed — Hermes reads `num_ctx` from the new model and
+detects 32768. The variant shows up automatically in the `/model` picker (live-listed). Verify:
+
+```bash
+v && python -c "
+from agent.model_metadata import get_model_context_length
+print(get_model_context_length('nemotron-3-nano-30b-small:32k',
+      base_url='http://localhost:11434/v1', api_key='ollama'))   # -> 32768
+"
+```
+
+**Pick the size to fit VRAM.** Ollama allocates the KV cache for the *full* `num_ctx` at load time, so
+bigger windows cost VRAM up front. On worlock (≈26.5 GB across both GPUs, `SCHED_SPREAD=1`) for this
+~24 GB model:
+
+| Variant | Total VRAM at load | GPU 0 (5080) headroom | Verdict |
+|---------|--------------------|-----------------------|---------|
+| `:latest` (8k) | ~14.5 GB | lots | unusable for agents (too small) |
+| `:32k` | ~24.8 GB | ~0.8 GB | **recommended — safe headroom** |
+| `:64k` | ~25.0 GB | ~0.7 GB | works, but GPU 0 nearly full; risky |
+
+Start at `:32k`; only go larger if `nvidia-smi` shows room. `OLLAMA_KV_CACHE_TYPE=q8_0` (already set,
+see `bare_metal_configs.md`) keeps the KV cache compact.
+
+To remove a variant: `ollama rm nemotron-3-nano-30b-small:64k`.
+
 ## Managing Ollama directly
 
 ```bash
