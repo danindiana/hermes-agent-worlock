@@ -4996,6 +4996,20 @@ class HermesCLI:
 
         threading.Thread(target=_do_unload, daemon=True).start()
 
+    @staticmethod
+    def _requested_provider_for(result) -> str:
+        """Provider slug to use for per-turn credential re-resolution.
+
+        For ``custom:`` providers, resolving the ``custom:<slug>`` pool entry
+        returns that entry's stored ``model`` field, which
+        ``_ensure_runtime_credentials()`` would then write over the model the
+        user just picked. Requesting the bare ``custom`` provider (backed by
+        the explicit base_url/api_key set on the same switch) resolves to
+        ``model=None`` so the selected model sticks across turns.
+        """
+        tp = result.target_provider or ""
+        return "custom" if tp.startswith("custom:") else tp
+
     def _persist_model_choice(self, result) -> None:
         """Persist a model switch to config.yaml so it survives restart.
 
@@ -5003,6 +5017,9 @@ class HermesCLI:
         the base_url fully identifies the server, so persist the concrete
         endpoint under the bare ``custom`` provider — writing the ``custom:...``
         slug as the provider would not resolve cleanly on the next startup.
+        Also update the matching ``custom_providers`` entry's ``model`` field:
+        ``resolve_runtime_provider()`` reads it back on the next launch and
+        would otherwise restore the old model.
         """
         save_config_value("model.default", result.new_model)
         target_provider = result.target_provider or ""
@@ -5012,8 +5029,31 @@ class HermesCLI:
                 save_config_value("model.base_url", result.base_url)
             if result.api_key:
                 save_config_value("model.api_key", result.api_key)
+            self._update_custom_provider_model(result.base_url, result.new_model)
         elif result.provider_changed:
             save_config_value("model.provider", target_provider)
+
+    @staticmethod
+    def _update_custom_provider_model(base_url: str, model: str) -> None:
+        """Point the custom_providers entry matching ``base_url`` at ``model``."""
+        if not base_url or not model:
+            return
+        try:
+            from hermes_cli.config import load_config, save_config
+            cfg = load_config()
+            entries = cfg.get("custom_providers") or []
+            target = base_url.rstrip("/")
+            changed = False
+            for entry in entries:
+                if isinstance(entry, dict) and (entry.get("base_url") or "").rstrip("/") == target:
+                    if entry.get("model") != model:
+                        entry["model"] = model
+                        changed = True
+            if changed:
+                cfg["custom_providers"] = entries
+                save_config(cfg)
+        except Exception:
+            pass
 
     def _apply_model_switch_result(self, result, persist_global: bool) -> None:
         if not result.success:
@@ -5025,7 +5065,7 @@ class HermesCLI:
         old_base_url = self.base_url
         self.model = result.new_model
         self.provider = result.target_provider
-        self.requested_provider = result.target_provider
+        self.requested_provider = self._requested_provider_for(result)
         if result.api_key:
             self.api_key = result.api_key
             self._explicit_api_key = result.api_key
@@ -5260,7 +5300,7 @@ class HermesCLI:
         old_model = self.model
         self.model = result.new_model
         self.provider = result.target_provider
-        self.requested_provider = result.target_provider
+        self.requested_provider = self._requested_provider_for(result)
         if result.api_key:
             self.api_key = result.api_key
             self._explicit_api_key = result.api_key
