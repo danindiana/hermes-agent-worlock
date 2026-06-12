@@ -19,6 +19,7 @@ Environment="OLLAMA_MAIN_GPU=0"
 Environment="OLLAMA_GPU_OVERHEAD=0"
 Environment="OLLAMA_NUM_PARALLEL=1"           # requests queue; no concurrent generations
 Environment="OLLAMA_MAX_LOADED_MODELS=2"      # up to two models resident at once
+Environment="OLLAMA_SCHED_SPREAD=1"           # ALWAYS split a model across both GPUs (see below)
 Environment="OLLAMA_KEEP_ALIVE=60m"           # warm window after last use
 Environment="OLLAMA_FLASH_ATTENTION=1"
 Environment="OLLAMA_KV_CACHE_TYPE=q8_0"       # quantized KV cache to save VRAM
@@ -54,6 +55,33 @@ custom_providers:
 Key invariant (learned the hard way — see [[lessons_learned_ollama]]): `model.default` and the
 `custom_providers` entry's `model` must agree, because `resolve_runtime_provider()` reads the latter
 on every turn / launch. The `/model` picker now keeps them in sync automatically.
+
+## Multi-GPU model splitting (`OLLAMA_SCHED_SPREAD=1`)
+
+By **default** Ollama loads a model onto a *single* GPU whenever it fits, to avoid the per-token
+cross-GPU (PCIe) transfer cost. On worlock a 14B model therefore landed entirely on the RTX 5080
+(~12 GB on GPU 0, ~0 on GPU 1).
+
+`OLLAMA_SCHED_SPREAD=1` forces Ollama to **always split a model across all visible GPUs**. Verified:
+
+```
+# before (single GPU):   GPU0 5080 = 12.2 GB,  GPU1 3080 = 0.5 GB
+# after  (spread on):     GPU0 5080 =  9.0 GB,  GPU1 3080 = 4.8 GB   (deepseek-r1:14b, ~17 GB total)
+```
+
+**Trade-offs — know what you're buying:**
+- ✅ Combined ~26.5 GB VRAM usable for one model → run bigger models / bigger KV cache than the
+  5080's 16 GB alone allows.
+- ✅ Balanced VRAM load; less chance of OOM on GPU 0.
+- ⚠️ For models that *fit* on the 5080, spreading is usually **slower** — every token crosses the
+  PCIe bus, and the slower RTX 3080 (10 GB) can bottleneck the faster 5080.
+
+If you want the speed of single-GPU for small models and spreading only for big ones, remove
+`OLLAMA_SCHED_SPREAD` (that is the default) — Ollama auto-spreads only when a model doesn't fit on one
+GPU. The setting here is the explicit "always spread" override the operator chose.
+
+Apply after editing the override: `sudo systemctl daemon-reload && sudo systemctl restart ollama`
+(drops loaded models; in-flight `delegate.sh` calls return empty — re-run).
 
 ## VRAM behaviour on switch
 
