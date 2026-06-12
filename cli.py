@@ -5138,6 +5138,7 @@ class HermesCLI:
                     user_providers=user_provs,
                     custom_providers=custom_provs,
                     max_models=50,
+                    probe_live=True,
                 )
             except Exception:
                 providers = []

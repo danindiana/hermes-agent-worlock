@@ -784,6 +784,7 @@ def list_authenticated_providers(
     user_providers: dict = None,
     custom_providers: list | None = None,
     max_models: int = 8,
+    probe_live: bool = False,
 ) -> List[dict]:
     """Detect which providers have credentials and list their curated models.
 
@@ -810,6 +811,30 @@ def list_authenticated_providers(
     )
     from hermes_cli.auth import PROVIDER_REGISTRY
     from hermes_cli.models import OPENROUTER_MODELS, _PROVIDER_MODELS
+
+    def _merge_live_models(models_list: list, api_url: str, api_key: str = "") -> list:
+        """Append models the endpoint actually serves (OpenAI-compatible
+        ``/models``, e.g. Ollama's ``/v1/models``) to ``models_list``.
+
+        Config-declared models keep their order/priority at the front; live
+        models discovered from the running server are appended after them.
+        Only runs when ``probe_live`` is set so unit tests and non-interactive
+        callers don't make network calls. Network/timeout errors are swallowed
+        — the config models are always returned.
+        """
+        if not probe_live or not api_url:
+            return models_list
+        try:
+            from hermes_cli.models import fetch_api_models
+
+            live = fetch_api_models(api_key or None, api_url)
+        except Exception:
+            live = None
+        if live:
+            for m in live:
+                if m and m not in models_list:
+                    models_list.append(m)
+        return models_list
 
     results: List[dict] = []
     seen_slugs: set = set()  # lowercase-normalized to catch case variants (#9545)
@@ -1082,8 +1107,12 @@ def list_authenticated_providers(
                     if m and m not in models_list:
                         models_list.append(m)
 
-            # Try to probe /v1/models if URL is set (but don't block on it)
-            # For now just show what we know from config
+            # Merge in models the live endpoint actually serves (opt-in via
+            # probe_live) so e.g. a local Ollama lists all pulled models, not
+            # just the one saved in config.
+            ep_api_key = ep_cfg.get("api_key", "") or ep_cfg.get("key", "")
+            models_list = _merge_live_models(models_list, api_url, ep_api_key)
+
             results.append({
                 "slug": ep_name,
                 "name": display_name,
@@ -1134,6 +1163,7 @@ def list_authenticated_providers(
                 groups[slug] = {
                     "name": display_name,
                     "api_url": api_url,
+                    "api_key": (entry.get("api_key") or entry.get("key") or "").strip(),
                     "models": [],
                 }
             # The singular ``model:`` field only holds the currently
@@ -1171,13 +1201,16 @@ def list_authenticated_providers(
             )
             if _pair_key[0] and _pair_key[1] and _pair_key in _section3_emitted_pairs:
                 continue
+            grp_models = _merge_live_models(
+                grp["models"], grp["api_url"], grp.get("api_key", "")
+            )
             results.append({
                 "slug": slug,
                 "name": grp["name"],
                 "is_current": slug == current_provider,
                 "is_user_defined": True,
-                "models": grp["models"],
-                "total_models": len(grp["models"]),
+                "models": grp_models,
+                "total_models": len(grp_models),
                 "source": "user-config",
                 "api_url": grp["api_url"],
             })
