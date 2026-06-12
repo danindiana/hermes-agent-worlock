@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="diagrams/logo.svg" alt="Hermes Agent — worlock" width="100%">
+</p>
+
 # Hermes Agent — worlock deployment ☤
 
-> **Private fork** of [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent), deployed
+> **Public fork** of [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent), deployed
 > **bare-metal** on the host **`worlock`**. This README documents *this machine's* install — the venv fix
 > that got `./hermes` running, the local **Ollama** integration, and the `/model` picker work done on top of
 > upstream. The original upstream README is preserved verbatim at [`UPSTREAM_README.md`](UPSTREAM_README.md).
