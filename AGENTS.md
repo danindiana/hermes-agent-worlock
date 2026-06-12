@@ -80,6 +80,10 @@ hermes-agent/
 
 ## File Dependency Chain
 
+![Module / file dependency map](diagrams/agents_module_architecture.png)
+
+> SVG (crisp at any zoom): [`diagrams/agents_module_architecture.svg`](diagrams/agents_module_architecture.svg)
+
 ```
 tools/registry.py  (no deps — imported by all tool files)
        ↑
@@ -119,6 +123,10 @@ class AIAgent:
 ```
 
 ### Agent Loop
+
+![AIAgent turn loop](diagrams/agents_agent_loop.png)
+
+> SVG (crisp at any zoom): [`diagrams/agents_agent_loop.svg`](diagrams/agents_agent_loop.svg)
 
 The core loop is inside `run_conversation()` — entirely synchronous:
 
@@ -196,6 +204,10 @@ if canonical == "mycommand":
 
 The TUI is a full replacement for the classic (prompt_toolkit) CLI, activated via `hermes --tui` or `HERMES_TUI=1`.
 
+![TUI process model](diagrams/agents_tui_process_model.png)
+
+> SVG (crisp at any zoom): [`diagrams/agents_tui_process_model.svg`](diagrams/agents_tui_process_model.svg)
+
 ### Process Model
 
 ```
@@ -225,6 +237,10 @@ Newline-delimited JSON-RPC over stdio. Requests from Ink, events from Python. Se
 | Theming | `theme.ts` + `branding.tsx` | `gateway.ready` with skin data |
 
 ### Slash Command Flow
+
+![Slash command dispatch](diagrams/agents_slash_command_flow.png)
+
+> SVG (crisp at any zoom): [`diagrams/agents_slash_command_flow.svg`](diagrams/agents_slash_command_flow.svg)
 
 1. Built-in client commands (`/help`, `/quit`, `/clear`, `/resume`, `/copy`, `/paste`, etc.) handled locally in `app.tsx`
 2. Everything else → `slash.exec` (runs in persistent `_SlashWorker` subprocess) → `command.dispatch` fallback

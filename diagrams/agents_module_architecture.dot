@@ -1,0 +1,54 @@
+digraph agents_module_architecture {
+  label="Hermes Agent — module / file dependency map  (dev guide)";
+  labelloc="t"; fontname="Helvetica"; fontsize=20; fontcolor="#e6f1ff";
+  rankdir=BT; bgcolor="#0d1117"; pad=0.3; nodesep=0.35; ranksep=0.55;
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box,
+        fillcolor="#161b22", color="#00e5ff", fontcolor="#00e5ff", penwidth=1.6];
+  edge [fontname="Helvetica", fontsize=9, color="#39ff14", fontcolor="#8b98a5", penwidth=1.3];
+
+  // --- tool layer (bottom: imported by everything above) ---
+  registry [label="tools/registry.py\n(no deps — register() at import)", color="#39ff14", fontcolor="#39ff14"];
+  tools    [label="tools/*.py\neach calls registry.register()", color="#39ff14", fontcolor="#39ff14"];
+  modeltools [label="model_tools.py\ndiscover_builtin_tools()\nhandle_function_call()", color="#f5d90a", fontcolor="#f5d90a"];
+
+  // --- entry / top-level consumers ---
+  subgraph cluster_top {
+    label="entry points / consumers"; style="rounded"; bgcolor="#11161d";
+    color="#ff2bd6"; fontcolor="#ff2bd6"; fontsize=12;
+    runagent [label="run_agent.py\nAIAgent — turn loop", color="#ff2bd6", fontcolor="#ff2bd6"];
+    cli      [label="cli.py\nHermesCLI · prompt_toolkit TUI", color="#ff2bd6", fontcolor="#ff2bd6"];
+    batch    [label="batch_runner.py", color="#ff2bd6", fontcolor="#ff2bd6"];
+    envs     [label="environments/", color="#ff2bd6", fontcolor="#ff2bd6"];
+  }
+
+  // --- agent internals ---
+  subgraph cluster_agent {
+    label="agent/  (internals)"; style="rounded"; bgcolor="#11161d";
+    color="#b388ff"; fontcolor="#b388ff"; fontsize=12;
+    prompt   [label="prompt_builder.py", color="#b388ff", fontcolor="#b388ff"];
+    compress [label="context_compressor.py", color="#b388ff", fontcolor="#b388ff"];
+    meta     [label="model_metadata.py\nMINIMUM_CONTEXT_LENGTH=64k", color="#b388ff", fontcolor="#b388ff"];
+    caching  [label="prompt_caching.py", color="#b388ff", fontcolor="#b388ff"];
+  }
+
+  // --- hermes_cli ---
+  subgraph cluster_cli {
+    label="hermes_cli/  (subcommands)"; style="rounded"; bgcolor="#11161d";
+    color="#ff9f1c"; fontcolor="#ff9f1c"; fontsize=12;
+    himain   [label="main.py — `hermes <cmd>`", color="#ff9f1c", fontcolor="#ff9f1c"];
+    switch   [label="model_switch.py\n/model picker", color="#ff9f1c", fontcolor="#ff9f1c"];
+    hiconf   [label="config.py", color="#ff9f1c", fontcolor="#ff9f1c"];
+    cmds     [label="commands.py\nresolve_command()", color="#ff9f1c", fontcolor="#ff9f1c"];
+  }
+
+  state [label="hermes_state.py\nSessionDB — SQLite + FTS5", shape=cylinder, color="#00e5ff", fontcolor="#00e5ff"];
+
+  // dependency direction: arrow A -> B means \"A is imported by B\"
+  registry -> tools -> modeltools;
+  modeltools -> runagent; modeltools -> cli; modeltools -> batch; modeltools -> envs;
+  prompt -> runagent; compress -> runagent; meta -> runagent; caching -> runagent;
+  himain -> cli [style=dashed]; switch -> cli [label="/model", style=dashed];
+  cmds -> cli [style=dashed]; hiconf -> cli [style=dashed];
+  state -> runagent [label="sessions/memory", color="#00e5ff"];
+  runagent -> cli [constraint=false, style=dotted, color="#8b98a5"];
+}

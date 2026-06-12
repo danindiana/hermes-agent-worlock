@@ -1,0 +1,25 @@
+digraph agents_slash_command_flow {
+  label="Slash command dispatch — registry, client-local, and worker fallthrough";
+  labelloc="t"; fontname="Helvetica"; fontsize=18; fontcolor="#e6f1ff";
+  rankdir=TB; bgcolor="#0d1117"; pad=0.3; nodesep=0.4; ranksep=0.55;
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box,
+        fillcolor="#161b22", color="#00e5ff", fontcolor="#00e5ff", penwidth=1.6];
+  edge [fontname="Helvetica", fontsize=9, color="#39ff14", fontcolor="#8b98a5", penwidth=1.3];
+
+  input  [label="user types /command", shape=ellipse, color="#ff2bd6", fontcolor="#ff2bd6"];
+  reg    [label="resolve_command()\ncentral registry — hermes_cli/commands.py", color="#f5d90a", fontcolor="#f5d90a"];
+  branch [label="client-local builtin?", shape=diamond, color="#ff9f1c", fontcolor="#ff9f1c"];
+
+  local  [label="handled locally\n/help /quit /clear /resume\n/copy /paste ...", color="#39ff14", fontcolor="#39ff14"];
+  exec   [label="slash.exec\n→ persistent _SlashWorker subprocess", color="#b388ff", fontcolor="#b388ff"];
+  disp   [label="command.dispatch (fallback)\nHermesCLI.process_command()", color="#00e5ff", fontcolor="#00e5ff"];
+
+  skill  [label="skill slash commands\nagent/skill_commands.py scans ~/.hermes/skills/\ninjected as USER message (preserves prompt caching)",
+          shape=note, fillcolor="#11161d", color="#8b98a5", fontcolor="#8b98a5", fontsize=9];
+
+  input -> reg -> branch;
+  branch -> local [label="yes", color="#39ff14"];
+  branch -> exec  [label="no", color="#b388ff"];
+  exec -> disp;
+  disp -> skill [style=dotted, color="#8b98a5", arrowhead=none];
+}

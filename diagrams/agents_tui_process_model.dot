@@ -1,0 +1,40 @@
+digraph agents_tui_process_model {
+  label="TUI architecture — ui-tui (Ink) ⇄ tui_gateway (Python) over JSON-RPC/stdio";
+  labelloc="t"; fontname="Helvetica"; fontsize=18; fontcolor="#e6f1ff";
+  rankdir=LR; bgcolor="#0d1117"; pad=0.3; nodesep=0.35; ranksep=0.7;
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box,
+        fillcolor="#161b22", color="#00e5ff", fontcolor="#00e5ff", penwidth=1.6];
+  edge [fontname="Helvetica", fontsize=9, color="#39ff14", fontcolor="#8b98a5", penwidth=1.3];
+
+  launch [label="hermes --tui\n(HERMES_TUI=1)", shape=ellipse, color="#ff2bd6", fontcolor="#ff2bd6"];
+
+  subgraph cluster_node {
+    label="Node / Ink (TypeScript) — owns the screen"; style="rounded"; bgcolor="#11161d";
+    color="#00e5ff"; fontcolor="#00e5ff"; fontsize=12;
+    app    [label="app.tsx + messageLine.tsx\ntranscript · composer"];
+    think  [label="thinking.tsx\ntool activity"];
+    prompts[label="prompts.tsx · maskedPrompt.tsx\napprovals · clarify/sudo/secret"];
+    theme  [label="theme.ts · branding.tsx"];
+  }
+
+  subgraph cluster_py {
+    label="Python tui_gateway — owns sessions, tools, model, slash"; style="rounded"; bgcolor="#11161d";
+    color="#ff9f1c"; fontcolor="#ff9f1c"; fontsize=12;
+    server [label="tui_gateway/server.py\nmethod/event catalog", color="#ff9f1c", fontcolor="#ff9f1c"];
+    agent  [label="AIAgent + tools + sessions", color="#b388ff", fontcolor="#b388ff"];
+    worker [label="_SlashWorker (persistent)\nslash.exec / command.dispatch", color="#f5d90a", fontcolor="#f5d90a"];
+  }
+
+  launch -> app;
+  app -> server     [label="prompt.submit", color="#00e5ff"];
+  server -> app     [label="message.delta / complete", color="#39ff14"];
+  think -> server   [label="tool.start/progress/complete", style=dashed];
+  server -> prompts [label="approval/clarify.request", color="#ff2bd6"];
+  prompts -> server [label="*.respond", color="#ff2bd6", style=dashed];
+  server -> agent;
+  server -> worker  [label="slash.exec", color="#f5d90a"];
+  server -> theme   [label="gateway.ready (skin data)", style=dotted, color="#8b98a5"];
+
+  edge [label="newline-delimited JSON-RPC over stdio"];
+  app -> server [color="#8b98a5", style=bold, dir=both, constraint=false, fontcolor="#e6f1ff"];
+}

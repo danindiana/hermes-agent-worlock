@@ -1,0 +1,30 @@
+digraph agents_agent_loop {
+  label="AIAgent.run_conversation() — synchronous turn loop";
+  labelloc="t"; fontname="Helvetica"; fontsize=20; fontcolor="#e6f1ff";
+  rankdir=TB; bgcolor="#0d1117"; pad=0.3; nodesep=0.4; ranksep=0.5;
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box,
+        fillcolor="#161b22", color="#00e5ff", fontcolor="#00e5ff", penwidth=1.6];
+  edge [fontname="Helvetica", fontsize=9, color="#39ff14", fontcolor="#8b98a5", penwidth=1.3];
+
+  enter  [label="enter run_conversation()\nuser_message + history", shape=ellipse, color="#ff2bd6", fontcolor="#ff2bd6"];
+  guard  [label="while api_call_count < max_iterations\nAND iteration_budget.remaining > 0", shape=hexagon, color="#f5d90a", fontcolor="#f5d90a"];
+  call   [label="client.chat.completions.create(\n  model, messages, tools=tool_schemas)", color="#00e5ff", fontcolor="#00e5ff"];
+  branch [label="response has tool_calls?", shape=diamond, color="#ff9f1c", fontcolor="#ff9f1c"];
+  exec   [label="for tool_call:\n  handle_function_call(name, args, task_id)", color="#b388ff", fontcolor="#b388ff"];
+  append [label="messages.append(tool_result_message)\napi_call_count += 1", color="#b388ff", fontcolor="#b388ff"];
+  done   [label="return response.content\n(final_response + messages)", shape=ellipse, color="#39ff14", fontcolor="#39ff14"];
+  stop   [label="budget/iterations exhausted\n→ stop", shape=ellipse, color="#ff2bd6", fontcolor="#ff2bd6"];
+
+  note   [label="messages: OpenAI format\n{role: system|user|assistant|tool}\nreasoning -> assistant_msg[\"reasoning\"]",
+          shape=note, fillcolor="#11161d", color="#8b98a5", fontcolor="#8b98a5", fontsize=9];
+
+  enter -> guard;
+  guard -> call [label="continue"];
+  guard -> stop [label="false", color="#ff2bd6"];
+  call -> branch;
+  branch -> exec [label="yes", color="#b388ff"];
+  exec -> append -> guard [label="loop", color="#f5d90a"];
+  branch -> done [label="no (plain content)", color="#39ff14"];
+  { rank=same; call; note; }
+  note -> call [style=dotted, color="#8b98a5", arrowhead=none];
+}
